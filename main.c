@@ -27,10 +27,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <string.h>
-
-#include <ctype.h>
-
 #include <libusb.h>
 #include <pthread.h>
 
@@ -39,6 +35,16 @@
 #define DEBUGP(...)	fprintf(stderr, __VA_ARGS__)
 #else
 #define DEBUGP(...)
+#endif
+
+/*
+ * All libusb callback functions should be marked with the LIBUSB_CALL macro
+ * to ensure that they are compiled with the same calling convention as libusb.
+ *
+ * If the macro isn't available in older libusb versions, we simply define it.
+ */
+#ifndef LIBUSB_CALL
+#define LIBUSB_CALL
 #endif
 
 static struct libusb_device_handle *devh = NULL;
@@ -91,7 +97,7 @@ static int hidkey_find_device(void)
 
 static pthread_t poll_thread;
 static pthread_cond_t exit_cond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t exit_cond_lock = PTHREAD_MUTEX_INITIALIZER;
+//static pthread_mutex_t exit_cond_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void request_exit(int code)
 {
@@ -127,7 +133,7 @@ static void LIBUSB_CALL irq_cb(struct libusb_transfer *transfer)
 	input_state = transfer->buffer[0];
 
 	if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
-		DEBUGP(stderr, "irq transfer status %d?\n", transfer->status);
+		DEBUGP("irq transfer status %d?\n", transfer->status);
 		do_exit = 2;
 		libusb_free_transfer(transfer);
 		irq_transfer = NULL;
@@ -198,6 +204,8 @@ static int hidkey_getpin(int pin)
 
 	modifier_keys = &data[0];
 #endif
+	if (r < 0)
+		fprintf(stderr, "Error reading input: %i\n", r);
 
 	val = (*modifier_keys & (1 << (pin-4))) ? 1 : 0;
 
@@ -207,8 +215,9 @@ static int hidkey_getpin(int pin)
 }
 int main(int argc, char **argv)
 {
-	int r, opt;
+	int r;
 #if 0
+	int opt;
 	while ((opt = getopt(argc, argv, "f:")) != -1) {
 		switch (opt) {
 		case 'f':
